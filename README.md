@@ -39,33 +39,58 @@ This project matters because it demonstrates how **multi-agent systems are chang
 
 ## 🏗 Architecture Overview
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        USER BROWSER                             │
-│    Next.js 16 Frontend  ←——→  Convex (Realtime DB/Backend)     │
-│    (Dashboard, Logs, Plan Review, Project Pages)                │
-└───────────────┬──────────────────────────┬──────────────────────┘
-                │  HTTP POST /api/plan       │  Convex subscriptions
-                ▼                           │  (live updates)
-┌───────────────────────────┐               │
-│   Next.js API Route       │               │
-│   /api/agents/plan        │               │
-└───────────┬───────────────┘               │
-            │ HTTP POST                     │
-            ▼                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                   Python Agent Engine  (FastAPI + Uvicorn)      │
-│                                                                 │
-│  ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌────────────┐  │
-│  │ Planner  │──▶│  Dev     │──▶│   QA     │──▶│  Critic    │  │
-│  │  Agent   │   │  Agent   │   │  Agent   │   │   Agent    │  │
-│  └──────────┘   └──────────┘   └──────────┘   └────────────┘  │
-│       │               │              │                │         │
-│       ▼               ▼              └────────────────┘         │
-│  Convex Mutations  File Export            Feedback Loop         │
-│  (plan, tasks,     to disk +                                    │
-│   status, logs)    GitHub Push                                  │
-└─────────────────────────────────────────────────────────────────┘
+![AgentForge Architecture Visualization](file:///C:/Users/MSILAPTOP/.gemini/antigravity/brain/353990a2-15db-475e-82dd-9d1bc70cc758/agentforge_architecture_viz_1773930495422.png)
+
+```mermaid
+graph TB
+    subgraph "User Interface (Next.js 16)"
+        Browser["🌐 User Browser"]
+        Dashboard["📊 Dashboard & Logs"]
+        NewProject["➕ New Project Form"]
+        PlanReview["📋 Plan Review & Approval"]
+    end
+
+    subgraph "Realtime Backend (Convex)"
+        DB[("🔥 Convex Realtime DB")]
+        Sub["📡 Live Subscriptions"]
+        Mut["🖊 Mutations & Queries"]
+    end
+
+    subgraph "Agent Engine (Python/FastAPI)"
+        Orchestrator["⚡ FastAPI Orchestrator"]
+        Planner["📋 Planner Agent"]
+        Dev["💻 Dev Agent"]
+        QA["🧪 QA Agent"]
+        Critic["🔍 Critic Agent"]
+        Memory["🧠 Pinecone Memory"]
+    end
+
+    Browser <--> Dashboard
+    Browser <--> NewProject
+    Browser <--> PlanReview
+
+    Dashboard <--> Sub
+    NewProject --> Mut
+    PlanReview --> Mut
+
+    Sub <--> DB
+    Mut <--> DB
+
+    DB <--> Orchestrator
+    Orchestrator --> Planner
+    Planner --> Dev
+    Dev --> QA
+    QA --> Critic
+    Critic --> Dev
+    Orchestrator <--> Memory
+
+    Dev --> Disk["💾 Local Export"]
+    Dev --> GitHub["🐙 GitHub Push"]
+
+    style DB fill:#ff4d4d,stroke:#fff,stroke-width:2px,color:#fff
+    style Orchestrator fill:#4d94ff,stroke:#fff,stroke-width:2px,color:#fff
+    style Memory fill:#bc47fb,stroke:#fff,stroke-width:2px,color:#fff
+    style Browser fill:#4caf50,stroke:#fff,stroke-width:2px,color:#fff
 ```
 
 The system has **three independent services** that work together:
@@ -172,6 +197,8 @@ AgentForge is designed to use **Pinecone** as its "Long-term Memory" layer. This
 
 AgentForge's power comes from **specialization** — instead of one generic LLM trying to do everything, four narrowly-scoped agents each own a critical phase of the software development lifecycle.
 
+---
+
 ### 1. 📋 Planner Agent (`planner.py`)
 
 **Role:** Lead Software Architect
@@ -185,6 +212,8 @@ AgentForge's power comes from **specialization** — instead of one generic LLM 
 - Stores the plan and tasks in Convex — triggers the human approval gate
 
 **Output type:** `PlanResult { architecture_overview: str, tasks: List[TaskDef] }`
+
+---
 
 ---
 
@@ -204,6 +233,8 @@ AgentForge's power comes from **specialization** — instead of one generic LLM 
 
 ---
 
+---
+
 ### 3. 🧪 QA Agent (`qa.py`)
 
 **Role:** Quality Assurance Engineer
@@ -216,6 +247,8 @@ AgentForge's power comes from **specialization** — instead of one generic LLM 
 - Produces a boolean pass/fail verdict and detailed feedback string
 
 **Output type:** `QAResult { passed: bool, feedback: str }`
+
+---
 
 ---
 
