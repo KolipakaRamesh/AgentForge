@@ -11,6 +11,7 @@ from agents.planner import planner_agent
 from agents.dev import dev_agent
 from agents.qa import qa_agent
 from agents.critic import critic_agent
+from memory import agent_memory
 
 app = FastAPI(title="AgentForge AI Agent Engine")
 
@@ -31,7 +32,18 @@ def start_planning(req: PlanRequest, background_tasks: BackgroundTasks):
 async def run_planner(project_id: str, requirement: str):
     try:
         add_log(project_id, "planner", "Analyzing requirement and designing architecture...")
-        result = await planner_agent.run(f"Requirement: {requirement}")
+        
+        # 1. RETRIEVE HISTORICAL CONTEXT (RAG)
+        context_prompt = ""
+        if agent_memory.enabled:
+            add_log(project_id, "planner", "Searching Pinecone for similar architectural patterns...")
+            relevant_projects = agent_memory.retrieve_relevant_context(requirement)
+            if relevant_projects:
+                context_str = "\n\n".join([f"- Requirement: {p['requirement']}" for p in relevant_projects])
+                context_prompt = f"\n\n### HISTORICAL CONTEXT\nUse patterns from these related project requirements where applicable:\n{context_str}"
+
+        # 2. RUN PLANNER WITH CONTEXT
+        result = await planner_agent.run(f"Requirement: {requirement}{context_prompt}")
         
         plan_content = result.output.architecture_overview
         add_log(project_id, "planner", "Architecture planned. Generating task breakdowns...")
@@ -128,6 +140,11 @@ async def run_execution_loop(project_id: str, plan_id: str):
             add_log(project_id, "system", f"Project deployed to GitHub! Repository: {github_url}")
         else:
             add_log(project_id, "system", f"Project deployed locally! Saved to {export_dir}")
+
+        # 5. PINECONE MEMORY (Update Vector Store)
+        if agent_memory.enabled:
+            add_log(project_id, "system", "Storing project architecture in Pinecone (Long-term Memory)...")
+            agent_memory.store_project_context(project_id, requirement, plan_content)
 
     except Exception as e:
         add_log(project_id, "system", f"Execution failed: {str(e)}")
