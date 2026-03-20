@@ -4,8 +4,13 @@ Handles automatic repository creation and code push
 """
 import os
 import base64
+import logging
 from github import Github, GithubException
 from typing import Dict, List, Optional
+
+# Basic logging setup
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class GitHubManager:
     def __init__(self):

@@ -2,12 +2,17 @@ import os
 os.environ["OPENAI_BASE_URL"] = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 os.environ["OPENAI_API_KEY"] = os.getenv("OPENROUTER_API_KEY", "")
 
+import httpx
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
 from pydantic_ai.models.openai import OpenAIModel
 from typing import List
 
-model = OpenAIModel(os.getenv("OPENROUTER_MODEL", "openai/gpt-4o"))
+model_name = os.getenv("OPENROUTER_MODEL")
+if not model_name:
+    raise ValueError("OPENROUTER_MODEL environment variable is not set")
+
+model = OpenAIModel(model_name)
 
 class TaskDef(BaseModel):
     title: str = Field(description="Short title of the task")

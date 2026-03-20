@@ -1,6 +1,9 @@
 import os
 from convex import ConvexClient
 from github_integration import github_manager
+from dotenv import load_dotenv
+
+load_dotenv()
 
 convex_url = os.getenv("NEXT_PUBLIC_CONVEX_URL")
 if not convex_url:
@@ -23,10 +26,11 @@ def update_project_status(project_id: str, status: str, github_url: str = None):
     client.mutation("projects:updateProjectStatus", args)
 
 def save_plan(project_id: str, content: str):
-    return client.mutation("plans:savePlan", {
+    res = client.mutation("plans:savePlan", {
         "projectId": project_id,
         "content": content
     })
+    return res
 
 def save_tasks(plan_id: str, tasks: list):
     client.mutation("tasks:saveTasks", {

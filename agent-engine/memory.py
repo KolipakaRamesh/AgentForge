@@ -88,7 +88,7 @@ class AgentMemory:
                 ]
             )
         except Exception as e:
-            print(f"Failed to store project context in Pinecone: {e}")
+            pass
 
     def retrieve_relevant_context(self, query: str, top_k: int = 3) -> List[Dict[str, Any]]:
         """Retrieve the most relevant previous projects or snippets"""

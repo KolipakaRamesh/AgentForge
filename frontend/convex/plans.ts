@@ -11,6 +11,14 @@ export const getPlanByProjectId = query({
   },
 });
 
+export const getPlanById = query({
+  args: { id: v.id("plans") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.id);
+  },
+});
+
+
 export const savePlan = mutation({
   args: {
     projectId: v.id("projects"),

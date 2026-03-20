@@ -182,14 +182,10 @@ AgentForge/
 
 ---
 
-## 🧠 Agent Memory (Pinecone Integration)
-
-AgentForge is designed to use **Pinecone** as its "Long-term Memory" layer. This allows the agent team to move beyond a stateless pipeline and build persistent context:
-- **Project Retrieval**: Agents can search for architectural patterns or code snippets from previous projects.
-- **Dynamic Context**: Inject relevant documentation (e.g., Tailwind v4 docs, Convex patterns) into the prompt using RAG.
-- **Cross-Agent Knowledge**: Enable the Critic or Planner to reference historical QA failures and successes.
-
-*(Note: Configuration is available in `.env`. Integration code for the memory retrieval layer is scheduled for implementing next.)*
+AgentForge uses **Pinecone** as its "Long-term Memory" layer. This allows the agent team to move beyond a stateless pipeline and build persistent context:
+- **Project Retrieval**: The Planner Agent automatically searches Pinecone for architectural patterns from previous projects to inform new designs (RAG).
+- **Persistent Knowledge**: Stores project requirements and architectures to ensure the AI "learns" from every generation.
+- **Cross-Agent Context**: Enables the system to maintain a high-quality codebase by referencing successful historical patterns.
 
 ---
 
@@ -300,6 +296,7 @@ AgentForge's power comes from **specialization** — instead of one generic LLM 
 - **🤖 Autonomous Feedback Loop** — If QA fails, the Critic + Dev agents automatically iterate without user intervention.
 - **📦 Auto Export to Disk** — Generated projects are saved as real, runnable codebases in `ExportedProjects/project_{id}/`.
 - **🐙 Auto GitHub Push** — Approved and verified codebases are automatically pushed to a new GitHub repository.
+- **🔄 API Resilience & Retries** — Built-in `tenacity` retry loops and high timeouts (300s) ensure the system recovers from transient OpenRouter/OpenAI 502/504 errors.
 - **🧠 Structured LLM Outputs** — All agents use PydanticAI with typed output models — no string parsing, no hallucinated JSON.
 - **🛡 Convex Type-Safe Backend** — All database operations use Convex validators (`v.string()`, `v.id()`, etc.) for end-to-end type safety.
 

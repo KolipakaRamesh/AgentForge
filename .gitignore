@@ -66,6 +66,10 @@ agent-engine/build/
 agent-engine/*.egg-info/
 agent-engine/.coverage
 agent-engine/htmlcov/
+agent-engine/repro_openai_err.py
+agent-engine/test_planner_hang.py
+agent-engine/check_sig.py
+agent-engine/test_pinecone.py
 
 # -------------------------
 # Logs

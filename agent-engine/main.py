@@ -4,13 +4,25 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 
 load_dotenv()
-print(f"NEXT_PUBLIC_CONVEX_URL: {os.getenv('NEXT_PUBLIC_CONVEX_URL', 'NOT SET')}")
 
 from convex_client import update_project_status, add_log, save_plan, save_tasks, client
+from github_integration import github_manager
 from agents.planner import planner_agent
 from agents.dev import dev_agent
 from agents.qa import qa_agent
 from agents.critic import critic_agent
+import tenacity
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+
+# Retry logic for LLM calls (OpenRouter can be flaky with 502/504)
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=4, max=10),
+    retry=retry_if_exception_type(Exception), # Catch generic for now to handle variety of API errors
+    before_sleep=lambda retry_state: print(f"Retrying agent call due to error: {retry_state.outcome.exception()}")
+)
+async def run_agent_with_retry(agent, prompt):
+    return await agent.run(prompt)
 from memory import agent_memory
 
 app = FastAPI(title="AgentForge AI Agent Engine")
@@ -41,9 +53,11 @@ async def run_planner(project_id: str, requirement: str):
             if relevant_projects:
                 context_str = "\n\n".join([f"- Requirement: {p['requirement']}" for p in relevant_projects])
                 context_prompt = f"\n\n### HISTORICAL CONTEXT\nUse patterns from these related project requirements where applicable:\n{context_str}"
+        else:
+            pass
 
         # 2. RUN PLANNER WITH CONTEXT
-        result = await planner_agent.run(f"Requirement: {requirement}{context_prompt}")
+        result = await run_agent_with_retry(planner_agent, f"Requirement: {requirement}{context_prompt}")
         
         plan_content = result.output.architecture_overview
         add_log(project_id, "planner", "Architecture planned. Generating task breakdowns...")
@@ -63,15 +77,22 @@ async def run_execution_loop(project_id: str, plan_id: str):
     try:
         add_log(project_id, "system", "Spinning up execution environment...")
         
-        # 1. Fetch Plan from Convex
+        # 1. Fetch Plan and Project (for Requirement) from Convex
         try:
             plan_result = client.query("plans:getPlanById", {"id": plan_id})
+            project_result = client.query("projects:getProject", {"projectId": project_id})
+            
             if plan_result:
                 plan_content = plan_result.get("content", "Execute tasks according to standard Next.js architecture.")
             else:
-                # Fallback if plan not found
                 plan_content = "Execute tasks according to standard Next.js architecture."
                 add_log(project_id, "system", "Warning: Plan not found in Convex, using fallback content")
+                
+            if project_result:
+                requirement = project_result.get("description", "Software project")
+            else:
+                requirement = "Software project"
+                add_log(project_id, "system", "Warning: Project not found in Convex")
         except Exception as e:
             # Fallback on any error
             plan_content = "Execute tasks according to standard Next.js architecture."
@@ -79,16 +100,16 @@ async def run_execution_loop(project_id: str, plan_id: str):
         
         # 2. DEV AGENT
         add_log(project_id, "dev", "Writing code based on architectural plan...")
-        dev_res = await dev_agent.run(f"Implement this plan:\n{plan_content}")
+        dev_res = await run_agent_with_retry(dev_agent, f"Implement this plan:\n{plan_content}")
         add_log(project_id, "dev", f"Generated {len(dev_res.output.files)} files. {dev_res.output.explanation}")
         
         # 3. QA AGENT
         add_log(project_id, "qa", "Running tests and verifying codebase...")
-        qa_res = await qa_agent.run(f"Review these generated files:\n{str(dev_res.output.files)}")
+        qa_res = await run_agent_with_retry(qa_agent, f"Review these generated files:\n{str(dev_res.output.files)}")
         
         if not qa_res.output.passed:
             add_log(project_id, "critic", f"QA found issues: {qa_res.output.feedback}. Constructing fixes...")
-            critic_res = await critic_agent.run(f"Dev did: {dev_res.output.explanation}. QA said: {qa_res.output.feedback}")
+            critic_res = await run_agent_with_retry(critic_agent, f"Dev did: {dev_res.output.explanation}. QA said: {qa_res.output.feedback}")
             add_log(project_id, "critic", f"Actionable feedback generated. Looping back... (Skipped for demo)")
         else:
             add_log(project_id, "qa", "All checks passed successfully.")
