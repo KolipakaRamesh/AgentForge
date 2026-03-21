@@ -14,7 +14,7 @@ export const getLogsByProjectId = query({
 export const addLog = mutation({
   args: {
     projectId: v.id("projects"),
-    agentType: v.union(v.literal("planner"), v.literal("dev"), v.literal("qa"), v.literal("critic"), v.literal("system")),
+    agentType: v.union(v.literal("planner"), v.literal("dev"), v.literal("qa"), v.literal("critic"), v.literal("system"), v.literal("research")),
     message: v.string(),
     data: v.optional(v.any()),
   },

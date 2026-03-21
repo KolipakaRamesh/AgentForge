@@ -11,6 +11,7 @@ from agents.planner import planner_agent
 from agents.dev import dev_agent
 from agents.qa import qa_agent
 from agents.critic import critic_agent
+from agents.researcher import researcher_agent
 import tenacity
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
@@ -98,27 +99,73 @@ async def run_execution_loop(project_id: str, plan_id: str):
             plan_content = "Execute tasks according to standard Next.js architecture."
             add_log(project_id, "system", f"Error fetching plan from Convex: {str(e)}. Using fallback content.")
         
-        # 2. DEV AGENT
-        add_log(project_id, "dev", "Writing code based on architectural plan...")
-        dev_res = await run_agent_with_retry(dev_agent, f"Implement this plan:\n{plan_content}")
-        add_log(project_id, "dev", f"Generated {len(dev_res.output.files)} files. {dev_res.output.explanation}")
-        
-        # 3. QA AGENT
-        add_log(project_id, "qa", "Running tests and verifying codebase...")
-        qa_res = await run_agent_with_retry(qa_agent, f"Review these generated files:\n{str(dev_res.output.files)}")
-        
-        if not qa_res.output.passed:
-            add_log(project_id, "critic", f"QA found issues: {qa_res.output.feedback}. Constructing fixes...")
-            critic_res = await run_agent_with_retry(critic_agent, f"Dev did: {dev_res.output.explanation}. QA said: {qa_res.output.feedback}")
-            add_log(project_id, "critic", f"Actionable feedback generated. Looping back... (Skipped for demo)")
-        else:
-            add_log(project_id, "qa", "All checks passed successfully.")
+        # 2. DEV & QA & CRITIC FEEDBACK LOOP
+        current_files = []
+        explanation = ""
+        max_iterations = 3
+        iteration = 0
+        qa_passed = False
+
+        while iteration < max_iterations and not qa_passed:
+            iteration += 1
+            if iteration > 1:
+                add_log(project_id, "dev", f"Iteration {iteration}: Applying fixes from Critic...")
+                dev_res = await run_agent_with_retry(dev_agent, f"Fix these issues based on Critic feedback:\n{critic_res.output.actionable_fixes}\nPrevious Implementation:\n{explanation}")
+            else:
+                add_log(project_id, "dev", "Writing initial code based on architectural plan...")
+                dev_res = await run_agent_with_retry(dev_agent, f"Implement this plan:\n{plan_content}")
             
-        # 4. EXPORT TO DISK
+            current_files = dev_res.output.files
+            explanation = dev_res.output.explanation
+            add_log(project_id, "dev", f"Generated {len(current_files)} files. {explanation}")
+            
+            # QA CHECK
+            add_log(project_id, "qa", f"Running verification (Attempt {iteration})...")
+            qa_res = await run_agent_with_retry(qa_agent, f"Review these generated files:\n{str(current_files)}")
+            
+            if qa_res.output.passed:
+                add_log(project_id, "qa", "All checks passed successfully.")
+                qa_passed = True
+            else:
+                add_log(project_id, "critic", f"QA found issues: {qa_res.output.feedback}. Analyzing...")
+                critic_res = await run_agent_with_retry(critic_agent, f"Dev did: {explanation}. QA said: {qa_res.output.feedback}")
+                add_log(project_id, "critic", f"Actionable feedback generated: {critic_res.output.actionable_fixes}")
+
+        if not qa_passed:
+            add_log(project_id, "system", "Warning: Project failed QA after maximum iterations. Exporting last variant.")
+        else:
+            add_log(project_id, "system", f"Codebase finalized after {iteration} iterations.")
+            
+        # 4. RESEARCH LOOP (AUTO-OPTIMIZATION)
+        add_log(project_id, "research", "Starting autonomous research loop (Inspired by karpathy/autoresearch)...")
+        # Load the research protocol
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "research_program.md"), "r", encoding="utf-8") as f:
+            research_program = f.read()
+
+        current_files = dev_res.output.files
+        for i in range(2): # Number of research iterations
+            add_log(project_id, "research", f"Iteration {i+1}: Proposing refinement...")
+            res_res = await run_agent_with_retry(researcher_agent, f"Protocol:\n{research_program}\nCurrent Files:\n{str(current_files)}\nPlan:\n{plan_content}")
+            
+            add_log(project_id, "research", f"Refinement Proposed: {res_res.output.hypothesis}")
+            add_log(project_id, "research", f"Type: {res_res.output.improvement_type}")
+            
+            # QA check on the refinement
+            qa_res_refine = await run_agent_with_retry(qa_agent, f"Review these refined files:\n{str(res_res.output.files)}")
+            if qa_res_refine.output.passed:
+                add_log(project_id, "research", "Refinement verified and merged into baseline.")
+                current_files = res_res.output.files
+            else:
+                add_log(project_id, "research", f"Refinement failed QA: {qa_res_refine.output.feedback}. Discarding variant.")
+        
+        # Finally, we use current_files (which might be the refined ones)
+        final_files = current_files
+
+        # 5. EXPORT TO DISK
         add_log(project_id, "system", "Exporting generated files to local project directory...")
         export_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "ExportedProjects", f"project_{project_id}")
         os.makedirs(export_dir, exist_ok=True)
-        for f_def in dev_res.output.files:
+        for f_def in final_files:
             file_path = os.path.join(export_dir, f_def.path)
             os.makedirs(os.path.dirname(file_path), exist_ok=True)
             with open(file_path, "w", encoding="utf-8") as f:
@@ -128,7 +175,7 @@ async def run_execution_loop(project_id: str, plan_id: str):
         
         # Prepare files for GitHub push
         files_to_push = {}
-        for f_def in dev_res.output.files:
+        for f_def in final_files:
             files_to_push[f_def.path] = f_def.content
         
         # Push to GitHub and get URL

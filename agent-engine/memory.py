@@ -88,7 +88,13 @@ class AgentMemory:
                 ]
             )
         except Exception as e:
-            pass
+            print(f"Failed to store project context in Pinecone: {e}")
+            # Log to Convex if possible
+            try:
+                from convex_client import add_log
+                add_log(project_id, "system", f"Memory insertion failed: {str(e)}")
+            except:
+                pass
 
     def retrieve_relevant_context(self, query: str, top_k: int = 3) -> List[Dict[str, Any]]:
         """Retrieve the most relevant previous projects or snippets"""

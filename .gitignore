@@ -57,7 +57,6 @@ agent-engine/venv/
 agent-engine/.venv/
 agent-engine/.env
 agent-engine/pip-log.txt
-agent-engine/pip-delete-this-directory.txt
 agent-engine/.pytest_cache/
 agent-engine/.ruff_cache/
 agent-engine/.mypy_cache/
@@ -66,10 +65,6 @@ agent-engine/build/
 agent-engine/*.egg-info/
 agent-engine/.coverage
 agent-engine/htmlcov/
-agent-engine/repro_openai_err.py
-agent-engine/test_planner_hang.py
-agent-engine/check_sig.py
-agent-engine/test_pinecone.py
 
 # -------------------------
 # Logs

@@ -39,11 +39,13 @@ This project matters because it demonstrates how **multi-agent systems are chang
 
 ## 🏗 Architecture Overview
 
-![AgentForge Architecture Visualization](file:///C:/Users/MSILAPTOP/.gemini/antigravity/brain/353990a2-15db-475e-82dd-9d1bc70cc758/agentforge_architecture_viz_1773930495422.png)
+AgentForge uses a reactive, multi-agent architecture where **Convex** acts as the high-speed data bus between a **Next.js** frontend and a **Python** agent engine.
+
+### System Architecture
 
 ```mermaid
 graph TB
-    subgraph "User Interface (Next.js 16)"
+    subgraph "User Interface (Next.js 15)"
         Browser["🌐 User Browser"]
         Dashboard["📊 Dashboard & Logs"]
         NewProject["➕ New Project Form"]
@@ -62,6 +64,7 @@ graph TB
         Dev["💻 Dev Agent"]
         QA["🧪 QA Agent"]
         Critic["🔍 Critic Agent"]
+        Researcher["🧬 Researcher Agent"]
         Memory["🧠 Pinecone Memory"]
     end
 
@@ -82,6 +85,9 @@ graph TB
     Dev --> QA
     QA --> Critic
     Critic --> Dev
+    Dev --> Researcher
+    Researcher --> QA
+    QA --> Researcher
     Orchestrator <--> Memory
 
     Dev --> Disk["💾 Local Export"]
@@ -106,7 +112,7 @@ The system has **three independent services** that work together:
 ```
 AgentForge/
 │
-├── frontend/                    # Next.js 16 Application
+├── frontend/                    # Next.js 15 Application
 │   ├── src/
 │   │   ├── app/
 │   │   │   ├── page.tsx         # Home dashboard — lists all projects
@@ -134,12 +140,14 @@ AgentForge/
 │   ├── main.py                  # FastAPI app — /api/plan, /api/execute endpoints
 │   ├── convex_client.py         # Python Convex SDK wrapper (logs, status, plans)
 │   ├── github_integration.py    # GitHub API: repo creation + file push
+│   ├── research_program.md      # Protocol for autonomous refinement (Researcher)
 │   └── agents/
 │       ├── prompts.py           # All system prompts for every agent (single source of truth)
 │       ├── planner.py           # Planner agent — PydanticAI + structured PlanResult output
 │       ├── dev.py               # Dev agent — outputs list of files with full content
 │       ├── qa.py                # QA agent — pass/fail verdict with feedback
-│       └── critic.py            # Critic agent — actionable fix instructions
+│       ├── critic.py            # Critic agent — actionable fix instructions
+│       └── researcher.py        # Researcher agent — proposes improvements
 │
 ├── ExportedProjects/            # AI-generated codebases saved here (git-ignored)
 ├── .gitignore
@@ -153,7 +161,7 @@ AgentForge/
 ### Frontend
 | Technology | Version | Purpose |
 |---|---|---|
-| **Next.js** | 16 (App Router) | React framework, routing, API routes |
+| **Next.js** | 15 (App Router) | React framework, routing, API routes |
 | **React** | 19 | UI component library |
 | **Tailwind CSS** | v4 | Utility-first styling (`@tailwindcss/postcss`) |
 | **Convex** | 1.x | Realtime database, serverless mutations/queries |
@@ -182,10 +190,11 @@ AgentForge/
 
 ---
 
+### AI Memory & RAG
 AgentForge uses **Pinecone** as its "Long-term Memory" layer. This allows the agent team to move beyond a stateless pipeline and build persistent context:
-- **Project Retrieval**: The Planner Agent automatically searches Pinecone for architectural patterns from previous projects to inform new designs (RAG).
-- **Persistent Knowledge**: Stores project requirements and architectures to ensure the AI "learns" from every generation.
-- **Cross-Agent Context**: Enables the system to maintain a high-quality codebase by referencing successful historical patterns.
+- **Architectural Retrieval**: The Planner Agent automatically searches Pinecone for patterns from successful previous projects (RAG).
+- **Knowledge Persistence**: Every approved project architecture and requirement is indexed, enabling the system to "learn" from every execution.
+- **Improved Decision Making**: Historical context helps the Planner avoid repeating past architectural mistakes.
 
 ---
 
@@ -252,15 +261,30 @@ AgentForge's power comes from **specialization** — instead of one generic LLM 
 
 **Role:** Senior Staff Engineer / Code Reviewer
 
-**Why it matters:** Closes the self-healing loop. When QA fails, the system doesn't crash — the Critic diagnoses the root cause and issues precise correction instructions, enabling the Dev Agent to iterate. This creates an **autonomous refinement loop** without human intervention.
+**Why it matters:** Closes the self-healing loop. When QA fails, the system doesn't crash — the Critic diagnoses the root cause and issues precise correction instructions, enabling the Dev Agent to iterate autonomously.
 
 **What it does:**
-- Receives the Dev's implementation summary + QA's failure report
-- Analyzes the root cause of each failure
-- Outputs an actionable set of instructions for the Dev Agent to fix
-- Drives the feedback loop until QA passes (or max iterations reached)
+- Analyzes implementation summary + QA failure reports.
+- Issues strict **actionable fixes** to the Dev agent.
+- Drives the **3-iteration feedback loop** until QA passes.
 
-**Output type:** `CriticResult { approved: bool, feedback: str }`
+**Output type:** `CriticResult { approved_for_deployment: bool, actionable_fixes: str }`
+
+---
+
+### 5. 🧬 Researcher Agent (`researcher.py`)
+
+**Role:** Senior Research Engineer
+
+**Why it matters:** Inspired by autonomous research patterns (like `karpathy/autoresearch`), this agent represents the "self-optimizing" layer. It doesn't just write code; it experiments with improvements. It ensures the codebase isn't just "working" but is "refined."
+
+**What it does:**
+- Operates in a **2-iteration autonomous research loop** after the initial build is verified.
+- Proposes refinements based on a specialized `research_program.md` protocol.
+- Identifies micro-optimizations (e.g., better Tailwind patterns, more efficient Convex queries).
+- **Safe Merging**: Refinements are only merged if they pass a final QA verification pass.
+
+**Output type:** `ResearchResult { hypothesis: str, improvement_type: str, files: List[FileDef] }`
 
 ---
 
@@ -281,24 +305,25 @@ AgentForge's power comes from **specialization** — instead of one generic LLM 
        ↓
 7. [QA AGENT] verifies the generated code
        ↓
-8a. QA PASS → Files exported to ExportedProjects/ + pushed to GitHub (status: "done")
-8b. QA FAIL → [CRITIC AGENT] generates fix instructions → Dev loops again
+8. [CRITIC LOOP] QA FAIL → Critic generates fixes → Dev loops. (Max 3 iterations)
        ↓
-9. All logs stream live to the project dashboard via Convex subscriptions
+9. [RESEARCH LOOP] QA PASS → Researcher proposes optimizations → QA verifies. (Max 2 iterations)
+       ↓
+10. Final files exported to Disk + pushed to GitHub (status: "done")
+       ↓
+11. All logs stream live to the project dashboard via Convex subscriptions
 ```
 
 ---
 
 ## ✨ Key Features
 
-- **🔄 Real-time Agent Logs** — Every agent writes status messages to Convex. The UI subscribes and shows a live log stream — no polling, no refresh needed.
-- **👤 Human-in-the-Loop** — The system pauses after planning. The user reviews and approves or rejects the architectural plan before any code is written.
-- **🤖 Autonomous Feedback Loop** — If QA fails, the Critic + Dev agents automatically iterate without user intervention.
-- **📦 Auto Export to Disk** — Generated projects are saved as real, runnable codebases in `ExportedProjects/project_{id}/`.
-- **🐙 Auto GitHub Push** — Approved and verified codebases are automatically pushed to a new GitHub repository.
-- **🔄 API Resilience & Retries** — Built-in `tenacity` retry loops and high timeouts (300s) ensure the system recovers from transient OpenRouter/OpenAI 502/504 errors.
-- **🧠 Structured LLM Outputs** — All agents use PydanticAI with typed output models — no string parsing, no hallucinated JSON.
-- **🛡 Convex Type-Safe Backend** — All database operations use Convex validators (`v.string()`, `v.id()`, etc.) for end-to-end type safety.
+- **🔄 Real-time Agent Logs** — Live log stream via Convex subscriptions (no polling).
+- **👤 Human-in-the-Loop** — Architectural plans require explicit user approval before code generation starts.
+- **🤖 Autonomous Feedback Loop** — 3-iteration self-healing cycle between Dev, QA, and Critic.
+- **🧠 Long-Term Memory (RAG)** — Pinecone integration for historical architectural retrieval.
+- **🎨 Horizontal Workflow UI** — Sleeker, professional dashboard layout with color-coded status indicators (Blue/Yellow/Green/Red).
+- **🐙 GitHub Automation** — Auto-creates repositories and pushes verified code.
 
 ---
 

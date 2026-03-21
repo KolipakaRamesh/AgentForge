@@ -83,46 +83,14 @@ export default function ProjectView() {
       {/* Main Content Area */}
       <div className="flex-1 flex overflow-hidden">
         
-        {/* Left Panel: Activity Timeline */}
+        {/* Left Panel: Activity Timeline (Now just Logs) */}
         <div className="w-[320px] bg-slate-50 border-r border-slate-200 flex flex-col overflow-hidden relative z-10 custom-scrollbar">
-          <div className="p-5 border-b border-slate-200 shrink-0 bg-white z-10 relative">
-            <h2 className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">AI Team Status</h2>
-            <div className="grid grid-cols-2 gap-2.5">
-              {['planner', 'dev', 'qa', 'critic'].map(type => {
-                const latestLog = logs && logs.length > 0 ? logs[logs.length - 1] : null;
-                const isWorking = 
-                  (project.status === 'planning' && type === 'planner') || 
-                  (project.status === 'executing' && latestLog?.agentType === type);
-                
-                const hasExecuted = logs?.some(l => l.agentType === type) && !isWorking;
-                
-                const typeColor = 
-                    type === 'planner' ? 'blue' : 
-                    type === 'dev' ? 'indigo' : 
-                    type === 'qa' ? 'emerald' : 'rose';
-
-                return (
-                  <div key={type} className={`p-3 rounded-xl border ${isWorking ? `border-${typeColor}-200 bg-${typeColor}-50 shadow-sm` : hasExecuted ? 'border-slate-200 bg-white' : 'border-slate-200 bg-slate-50 opacity-90'} transition-all duration-500 flex items-center gap-3`}>
-                    <div className="relative flex h-2.5 w-2.5 shrink-0">
-                      {isWorking && <span className={`animate-ping absolute inline-flex h-full w-full rounded-full bg-${typeColor}-400 opacity-60`}></span>}  
-                      <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${isWorking ? `bg-${typeColor}-500 shadow-sm` : hasExecuted ? 'bg-emerald-500 shadow-sm' : 'bg-slate-300'}`}></span>
-                    </div>
-                    <div className="min-w-0">
-                      <p className={`text-[10px] font-bold uppercase tracking-wider truncate ${isWorking ? `text-${typeColor}-700` : hasExecuted ? 'text-slate-800' : 'text-slate-400'}`}>{type}</p>
-                      <p className="text-[9px] text-slate-400 uppercase font-semibold truncate leading-none mt-0.5">{isWorking ? 'Active' : hasExecuted ? 'Completed' : 'Standby'}</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-          
-          <div className="px-5 py-3 border-b border-slate-200 shrink-0 flex items-center justify-between bg-slate-100/80 sticky top-0 z-20 backdrop-blur-md">
-            <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.15em] flex items-center gap-2">
+          <div className="px-5 py-6 border-b border-slate-200 shrink-0 flex items-center justify-between bg-white sticky top-0 z-20 shadow-sm">
+            <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
               <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
               Execution Logs
             </h2>
-            <span className="text-[9px] font-bold uppercase tracking-widest bg-white border border-slate-200 text-slate-500 px-2 py-0.5 rounded-full shadow-sm">{logs?.length || 0}</span>
+            <span className="text-[9px] font-bold uppercase tracking-widest bg-slate-50 border border-slate-200 text-slate-500 px-2 py-0.5 rounded-full shadow-sm">{logs?.length || 0}</span>
           </div>
           
           <div className="flex-1 overflow-y-auto p-5 space-y-4 custom-scrollbar">
@@ -148,6 +116,7 @@ export default function ProjectView() {
                         log.agentType === 'planner' ? 'border-blue-200 text-blue-600' :
                         log.agentType === 'dev' ? 'border-indigo-200 text-indigo-600' :
                         log.agentType === 'qa' ? 'border-emerald-200 text-emerald-600' : 
+                        log.agentType === 'research' ? 'border-purple-200 text-purple-600' :
                         log.agentType === 'critic' ? 'border-rose-200 text-rose-600' : 'border-slate-200 text-slate-600'
                       } shadow-sm`}>
                         <span className="text-[10px] font-bold">{log.agentType[0].toUpperCase()}</span>
@@ -159,6 +128,7 @@ export default function ProjectView() {
                           log.agentType === 'planner' ? 'text-blue-600' :
                           log.agentType === 'dev' ? 'text-indigo-600' :
                           log.agentType === 'qa' ? 'text-emerald-600' :
+                          log.agentType === 'research' ? 'text-purple-600' :
                           log.agentType === 'critic' ? 'text-rose-600' : 'text-slate-600'
                         }`}>{log.agentType}</span>
                         <span className="text-[9px] text-slate-400 font-medium font-mono">{new Date(log._creationTime).toLocaleTimeString([], { hour12: false, hour: '2-digit', minute:'2-digit', second:'2-digit' })}</span>
@@ -172,8 +142,67 @@ export default function ProjectView() {
           </div>
         </div>
 
-        {/* Right Panel: Content / Planning Board / Code Viewer */}
-        <div className="flex-1 flex flex-col bg-slate-100/50 overflow-hidden relative">
+        {/* Right Panel: Content with Top Agent Bar */}
+        <div className="flex-1 flex flex-col bg-slate-100/30 overflow-hidden relative">
+          
+          {/* Horizontal Agent Status Bar */}
+          <div className="px-8 py-4 bg-white border-b border-slate-200 shadow-sm z-10 flex items-center gap-4 overflow-x-auto no-scrollbar">
+            <div className="flex-shrink-0 flex flex-col mr-2">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">AI Workflow</span>
+              <span className="text-[9px] text-slate-300 font-bold uppercase tracking-tighter mt-1">Multi-Agent System</span>
+            </div>
+            <div className="flex items-center gap-3">
+              {['planner', 'dev', 'qa', 'critic', 'research'].map(type => {
+                const latestLog = logs && logs.length > 0 ? logs[logs.length - 1] : null;
+                const isWorking = 
+                  (project.status === 'planning' && type === 'planner') || 
+                  (project.status === 'executing' && latestLog?.agentType === type);
+                
+                const hasStarted = logs?.some(l => l.agentType === type);
+                const isOverallDone = project.status === 'done';
+                const isFailed = project.status === 'failed';
+                
+                const statusColor = 
+                    isWorking ? 'blue' : 
+                    isFailed ? 'rose' : 
+                    isOverallDone ? 'emerald' : 
+                    hasStarted ? 'amber' : 'slate';
+
+                return (
+                  <div key={type} className={`px-4 py-2 rounded-xl border flex items-center gap-3 transition-all duration-300 min-w-[140px] ${
+                    isWorking ? `border-blue-200 bg-blue-50/50 shadow-sm ring-1 ring-blue-100` : 
+                    isFailed ? `border-rose-200 bg-rose-50/50` :
+                    isOverallDone ? `border-emerald-200 bg-emerald-50/30` :
+                    hasStarted ? `border-amber-200 bg-amber-50/50` : 
+                    'border-slate-100 bg-white/50 opacity-70'
+                  }`}>
+                    <div className="relative flex h-2 w-2">
+                      {isWorking && <span className={`animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-60`}></span>}  
+                      <span className={`relative inline-flex rounded-full h-2 w-2 ${
+                        isWorking ? `bg-blue-500 shadow-sm` : 
+                        isFailed ? `bg-rose-500 shadow-sm` :
+                        isOverallDone ? `bg-emerald-500 shadow-sm` : 
+                        hasStarted ? `bg-amber-500 shadow-sm` : 
+                        'bg-slate-200'
+                      }`}></span>
+                    </div>
+                    <div className="min-w-0">
+                      <p className={`text-[10px] font-extrabold uppercase tracking-widest truncate ${
+                        isWorking ? `text-blue-700` : 
+                        isFailed ? `text-rose-700` :
+                        isOverallDone ? `text-emerald-700` : 
+                        hasStarted ? `text-amber-700` : 
+                        'text-slate-500'
+                      }`}>{type}</p>
+                      <p className="text-[9px] text-slate-400 uppercase font-bold tracking-tight mt-0.5">
+                        {isWorking ? 'Active' : isFailed ? 'Error' : isOverallDone ? 'Completed' : hasStarted ? 'Back & Forth' : 'Standby'}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
           
           {project.status === 'waiting_approval' && plan ? (
             <div className="flex-1 overflow-y-auto p-12 custom-scrollbar">

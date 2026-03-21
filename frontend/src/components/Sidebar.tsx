@@ -4,12 +4,29 @@ import Link from "next/link";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { useRouter, useParams } from "next/navigation";
+import { useState } from "react";
 
 export default function Sidebar() {
   const projects = useQuery(api.projects.getProjects);
   const deleteProject = useMutation(api.projects.deleteProject);
   const router = useRouter();
   const params = useParams();
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  const handleDelete = async (projectId: any) => {
+    try {
+      console.log("Executing deletion for project:", projectId);
+      await deleteProject({ projectId });
+      console.log("Project deleted successfully:", projectId);
+      setConfirmDeleteId(null);
+      if (params?.id === projectId) {
+        router.push("/");
+      }
+    } catch (err) {
+      console.error("Failed to delete project:", err);
+      alert("Failed to delete project. See console for details.");
+    }
+  };
 
   return (
     <aside className="w-[280px] bg-white text-slate-600 flex flex-col h-full border-r border-slate-200 shrink-0 z-20">
@@ -44,34 +61,50 @@ export default function Sidebar() {
                   p.status === 'executing' 
                     ? 'bg-indigo-50 text-indigo-700 border border-indigo-100 font-semibold' 
                     : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 border border-transparent'
-                }`}
+                } ${confirmDeleteId === p._id ? 'opacity-50 blur-[0.5px]' : ''}`}
               >
                 {p.status === 'executing' && (
                   <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-5 bg-indigo-500 rounded-r-full" />
                 )}
                 <span className="ml-1">{p.name}</span>
               </Link>
-              <button 
-                 onClick={(e) => { 
-                   e.preventDefault(); 
-                   if (window.confirm('Delete this project forever?')) {
-                     deleteProject({ projectId: p._id })
-                       .then(() => {
-                         if (params?.id === p._id) {
-                           router.push("/");
-                         }
-                       })
-                       .catch((err) => {
-                         console.error(err);
-                         alert("Failed to delete project. See console for details.");
-                       }); 
-                   }
-                 }}
-                 className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-md bg-red-50 text-red-600 hover:text-red-700 hover:bg-red-100 opacity-0 group-hover:opacity-100 transition-all cursor-pointer z-10"
-                 title="Delete Project"
-              >
-                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-              </button>
+              
+              {confirmDeleteId === p._id ? (
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 z-20">
+                  <button 
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleDelete(p._id);
+                    }}
+                    className="p-1 px-2 bg-red-600 text-white text-[10px] font-bold rounded-md hover:bg-red-700 shadow-sm"
+                  >
+                    Confirm
+                  </button>
+                  <button 
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setConfirmDeleteId(null);
+                    }}
+                    className="p-1 px-2 bg-slate-200 text-slate-700 text-[10px] font-bold rounded-md hover:bg-slate-300"
+                  >
+                    Esc
+                  </button>
+                </div>
+              ) : (
+                <button 
+                   onClick={(e) => { 
+                     e.preventDefault(); 
+                     e.stopPropagation();
+                     setConfirmDeleteId(p._id);
+                   }}
+                   className="absolute right-3 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-md bg-red-50 text-red-600 hover:text-red-700 hover:bg-red-100 opacity-0 group-hover:opacity-100 transition-all cursor-pointer z-10"
+                   title="Delete Project"
+                >
+                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                </button>
+              )}
             </li>
           ))}
           {projects?.length === 0 && (
